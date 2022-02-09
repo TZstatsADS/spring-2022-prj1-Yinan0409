@@ -1,0 +1,288 @@
+---
+title: "Materialism vs Idealism"
+output:
+  html_document:
+    df_print: paged
+  pdf_document: default
+---
+**Background**
+Philosophy is often considered a discipline used to guide people how to understand and react to the world. The conflict between materialism and idealism was used to be a fundamental question, which has a profound impact on today's philosophy. Although many schools (like empiricism, rationalism etc.) arising with no preference on each side, philosophers may have their personal taste. **In this project, I want to dig into main words/topics in classic schools of materialism/idealism. Furthermore, their attitude towards similar concept (such as human) will be further analyzed based on speech dataset. **
+
+**Materialism**
+Materialism is a form of philosophical monism which holds matter to be the fundamental substance in nature, and all things, including mental states and consciousness, are results of material interactions.Aristotle is known as the father of materialism because of his metaphysical view to understand reality through scientific data. He believed that to understand an object, we must understand its ultimate form, which does not change.
+
+Representitive school: aristotle
+
+**Idealism**
+Idealism, in philosophy, any view that stresses the central role of the ideal or the spiritual in the interpretation of experience. It may hold that the world or reality exists essentially as spirit or consciousness, that abstractions and laws are more fundamental in reality than sensory things, or, at least, that whatever exists is known in dimensions that are chiefly mental—through and as ideas.
+
+Representative schools: german_idealism, plato
+
+# Step 0: Load the libraries and functions. 
+```{r, message=FALSE, warning=FALSE}
+# load packages
+library("rvest")
+library("tibble")
+# You may need to run
+# sudo ln -f -s $(/usr/libexec/java_home)/jre/lib/server/libjvm.dylib /usr/local/lib
+# in order to load qdap
+library("qdap")
+library("sentimentr")
+library("gplots")
+library("dplyr")
+library("tm")
+library("syuzhet")
+library("factoextra")
+library("beeswarm")
+library("scales")
+library("RColorBrewer")
+library("RANN")
+library("tm")
+library("topicmodels")
+library("readtext")
+library("RColorBrewer")
+library("wordcloud")
+library("tidytext")
+```
+This notebook was prepared with the following environmental settings.
+
+```{r}
+print(R.version)
+```
+# Step 1: Read dataset and preprocessing
+```{r}
+dataset1 <- read.csv("../data/philosophy_data.csv")
+
+speech.all <- dataset1 %>% select (school,author,title,sentence_lowered)
+
+speech.mat <- speech.all %>% filter (school == "aristotle")
+
+idea_schools <- c("german_idealism","plato")
+
+speech.idea <- speech.all %>% filter (school == idea_schools)
+```
+
+# Step 2: Data analysis --- word cloud
+```{r,fig.height=6, fig.width=6, warning=FALSE}
+useless_words <- c("one", "will", "also", "just","can","called","therefore","something")
+
+#Build Corpus of Materialism
+corpus.mat<-VCorpus(VectorSource(speech.mat$sentence_lowered))
+corpus.mat<-tm_map(corpus.mat, stripWhitespace)
+corpus.mat<-tm_map(corpus.mat, content_transformer(tolower))
+corpus.mat<-tm_map(corpus.mat, removeWords, stopwords("english"))
+corpus.mat<-tm_map(corpus.mat, removeWords, useless_words)
+corpus.mat<-tm_map(corpus.mat, removePunctuation)
+
+tdm.mat<-TermDocumentMatrix(corpus.mat)
+
+tdm.tidy.mat=tidy(tdm.mat)
+
+tdm.overall.mat=summarise(group_by(tdm.tidy.mat, term), sum(count))
+
+wordcloud(tdm.overall.mat$term, tdm.overall.mat$`sum(count)`,
+          scale=c(5,0.5),
+          max.words=100,
+          min.freq=1,
+          random.order=FALSE,
+          rot.per=0.3,
+          use.r.layout=T,
+          random.color=FALSE,
+          colors=brewer.pal(9,"Blues"))
+```
+It can be seen from the "Materialism WordCloud" that "man","thing/things","must" are the focus of materialism represented by Aristotle. Words with physical meaning like "animals", "nature", "body", "motion" are commonly mentioned.  
+
+Example
+
+"and, of course, man is the animal with which we are the most familiar."
+
+"it is possible for a thing to cause motion, though it is itself incapable of being moved."
+
+"the science of nature is concerned with magnitudes and motion and time, and each of these is necessarily infinite or finite, even if some things are not, eg a quality or a point"
+
+
+```{r,fig.height=6, fig.width=6, warning=FALSE}
+#Build Corpus of Idealism
+corpus.idea<-VCorpus(VectorSource(speech.idea$sentence_lowered))
+corpus.idea<-tm_map(corpus.idea, stripWhitespace)
+corpus.idea<-tm_map(corpus.idea, content_transformer(tolower))
+corpus.idea<-tm_map(corpus.idea, removeWords, stopwords("english"))
+corpus.idea<-tm_map(corpus.idea, removeWords, useless_words)
+corpus.idea<-tm_map(corpus.idea, removePunctuation)
+
+tdm.idea<-TermDocumentMatrix(corpus.idea)
+
+tdm.tidy.idea=tidy(tdm.idea)
+
+tdm.overall.idea=summarise(group_by(tdm.tidy.idea, term), sum(count))
+
+wordcloud(tdm.overall.idea$term, tdm.overall.idea$`sum(count)`,
+          scale=c(5,0.5),
+          max.words=100,
+          min.freq=1,
+          random.order=FALSE,
+          rot.per=0.3,
+          use.r.layout=T,
+          random.color=FALSE,
+          colors=brewer.pal(9,"Reds"))
+```
+
+It can be seen from the "Idealism WordCloud" that "man","thing/things","must" are the focus of materialism represented by Aristotle. Words used for quotation ( "say", "said", "socrates" etc) and recognition ("think", "know", "time") are commonly mentioned.
+
+Example
+
+"after this i approached another man, one of those thought to be wiser than he, and i thought the same thing, and so i came to be disliked both by him and by many others."
+
+"in this i was not mistaken; they knew things i did not know, and to that extent they were wiser than i."
+
+"it goes something like this: socrates is guilty of corrupting the young and of not believing in the gods in whom the city believes, but in other new spiritual things."
+
+"well, i mean something like this: suppose i asked what speed was, which we find in running and in playing the lyre and in speaking and in learning and in many other instances in fact we may say we display the quality, so far as it is worth mentioning, in movements of the arms or legs or tongue or voice or thought"
+
+# Step 3: Data analysis --- Topic modeling
+It is note-worthy that both materialism and idealism covered a broad topics regarding "man/men/people" and "thing/things". An investigation on their attitude on those concepts may reflect difference or similarity in their philosophy. After extracting all sentence related to "Man/Men/People" or "Thing/Things", Topic Modeling (LDA) is conducted to find 5 most relevant topic. I have written my personal interpretation on each topic below.
+
+```{r}
+#write get_topic function
+generate_dtm <- function(dataset, sch, keyword, filecode){
+  sentence <- dataset %>% filter (school==sch)
+  sentence <- sentence %>% filter (grepl(keyword, sentence_lowered))
+  corpus <- VCorpus(VectorSource(sentence$sentence_lowered))
+  corpus<-tm_map(corpus, stripWhitespace)
+  corpus<-tm_map(corpus, content_transformer(tolower))
+  corpus<-tm_map(corpus, removeWords, stopwords("english"))
+  corpus<-tm_map(corpus, removeWords, useless_words)
+  corpus<-tm_map(corpus, removePunctuation)
+  dtm <- DocumentTermMatrix(corpus)
+  
+  rowTotals <- apply(dtm, 1, sum) #Find the sum of words in each Document
+  dtm  <- dtm[rowTotals> 0, ]
+  return(dtm)
+}
+
+get_topic <- function(dtm, k){
+  #Set parameters
+  burnin <- 4000
+  iter <- 1000
+  thin <- 500
+  seed <-list(2003,5,63,100001,765)
+  nstart <- 5
+  best <- TRUE
+  
+  #Run LDA using Gibbs sampling
+  ldaOut <-LDA(dtm, k, method="Gibbs", control=list(nstart=nstart, 
+                                                 seed = seed, best=best,
+                                                 burnin = burnin, iter = iter, 
+                                                 thin=thin))
+  return(ldaOut)
+}
+
+output_topic <- function(ldaOut, filecode,k){
+  #write out results
+  #docs to topics
+  ldaOut.topics <- as.matrix(topics(ldaOut))
+  table(c(1:k, ldaOut.topics))
+  write.csv(ldaOut.topics,file=paste("../output/LDAGibbs", filecode,"DocsToTopics.csv"))
+
+  #top 10 terms in each topic
+  ldaOut.terms <- as.matrix(terms(ldaOut,20))
+  write.csv(ldaOut.terms,file=paste("../output/LDAGibbs", filecode, "TopicsToTerms.csv"))
+
+  #probabilities associated with each topic assignment
+  topicProbabilities <- as.data.frame(ldaOut@gamma)
+  write.csv(topicProbabilities,file=paste("../output/LDAGibbs", filecode,"TopicProbabilities.csv"))
+  
+  terms.beta=ldaOut@beta
+  terms.beta=scale(terms.beta)
+  topics.terms=NULL
+  for(i in 1:k){
+    topics.terms=rbind(topics.terms, ldaOut@terms[order(terms.beta[i,], decreasing = TRUE)[1:7]])
+  }
+  topics.terms
+  ldaOut.terms
+}
+```
+
+**Materialism towards Man/Men**
+
+```{r}
+dtm.mat.man <- generate_dtm(speech.all, "aristotle", "man|men","mat.man")
+set.seed(20)
+ldaOut.mat.man <-get_topic(dtm.mat.man,5)
+output_topic(ldaOut.mat.man,"mat_man",5)
+```
+Topic1: Politics/Government
+
+Topic2: How people survive in the world?
+
+Topic3: Humans relation to objects and animal
+
+Topic4: no hint
+
+Topic5: What makes us good people?/Criteria for judging good and bad
+
+
+
+
+**Idealism towards Man/Men/People**
+
+```{r}
+dtm.idea.man <- generate_dtm(speech.all, idea_schools, "man|men|people","idea.man")
+set.seed(20)
+ldaOut.idea.man <-get_topic(dtm.idea.man,5)
+output_topic(ldaOut.idea.man,"idea_man",5)
+```
+
+Topic1: What makes us good people?/Criteria for judging good and bad
+
+Topic2: Human should have manner/Ways to discipline people
+
+Topic3: Quotes from gods or socrates/ About good properties (justice, truth, wise, love)
+
+Topic4: no hint
+
+Topic5: Politics
+
+**Materialism towards Thing/Things**
+
+```{r}
+dtm.mat.thing <- generate_dtm(speech.all, "aristotle", "thing|things","mat.thing")
+set.seed(20)
+ldaOut.mat.thing <-get_topic(dtm.mat.thing,5)
+output_topic(ldaOut.mat.thing,"mat_thing",5)
+```
+Topic1: What is nature?/What the composition of world?
+
+Topic2: no hint
+
+Topic3: Argumentation process
+
+Topic4: What makes us good people?/Criteria for judging good and bad
+
+Topic5: Concept (like time, existence, movement)
+
+**Idealism towards Thing/Things**
+```{r}
+dtm.idea.thing <- generate_dtm(speech.all, idea_schools, "thing|things","idea.thing")
+set.seed(20)
+ldaOut.idea.thing <-get_topic(dtm.idea.thing,5)
+output_topic(ldaOut.idea.thing,"idea_thing",5)
+```
+
+Topic1: Relation between souls and body
+
+Topic2: Law and knowledge are needed
+
+Topic3: Quotes from socrates/Importance of Virture, Truth and Knowledge
+
+Topic4: What makes us good people?/Criteria for judging good and bad
+
+Topic5: The essence of existence
+
+# Summary
+1. Both materialism and idealism concentrate on discussing philosophy among "man/men/people" and things.
+2. For both division and both concepts (human, things), topics regarding "What makes us good people?/Criteria for judging good and bad" are intensively discussed.
+3. When it comes to human, both sides mentioned their politic point of views. It is certain that idealism stress more on the existence of law and rules.
+4. When it comes to human/things, materialism stresses more on the material life or concrete concept instead of mental status, while idealism prefer to persuing abstract concepts like "soul" "justice" "virtue" "love".
+5. When it comes to things, materialists may adopt strict argument process; idealists like to understand the world based on understanding.
+
